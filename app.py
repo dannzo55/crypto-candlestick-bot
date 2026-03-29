@@ -1,1 +1,58 @@
-from flask import Flask, render_template, jsonify, request\nfrom signal_generator import SignalGenerator\nfrom config import FLASK_PORT, FLASK_DEBUG, TRADING_PAIR, TIMEFRAME\nimport json\n\napp = Flask(__name__)\nsignal_gen = SignalGenerator()\n\n@app.route('/')\ndef index():\n    """Main dashboard"""\n    return render_template('index.html')\n\n@app.route('/api/signals', methods=['GET'])\ndef get_signals():\n    """Get current signals"""\n    symbol = request.args.get('symbol', TRADING_PAIR)\n    interval = request.args.get('interval', TIMEFRAME)\n    \n    signals = signal_gen.get_summary(symbol, interval)\n    return jsonify(signals)\n\n@app.route('/api/history', methods=['GET'])\ndef get_history():\n    """Get signal history"""\n    limit = request.args.get('limit', 50, type=int)\n    history = signal_gen.get_history(limit)\n    return jsonify(history)\n\n@app.route('/api/refresh', methods=['POST'])\ndef refresh_signals():\n    """Force refresh signals"""\n    symbol = request.json.get('symbol', TRADING_PAIR)\n    interval = request.json.get('interval', TIMEFRAME)\n    \n    signals = signal_gen.get_summary(symbol, interval)\n    return jsonify(signals)\n\n@app.route('/health', methods=['GET'])\ndef health():\n    """Health check endpoint"""\n    return jsonify({'status': 'ok'})\n\nif __name__ == '__main__':\n    app.run(\n        host='0.0.0.0',\n        port=FLASK_PORT,\n        debug=FLASK_DEBUG\n    )\n
+from flask import Flask, render_template, jsonify, request
+from signal_generator import SignalGenerator
+from config import FLASK_PORT, FLASK_DEBUG, TRADING_PAIR, TIMEFRAME
+import json
+
+app = Flask(__name__)
+signal_gen = SignalGenerator()
+
+@app.route('/')
+def index():
+    """Main dashboard"""
+    return render_template('index.html')
+
+@app.route('/api/signals', methods=['GET'])
+def get_signals():
+    """Get current signals"""
+    symbol = request.args.get('symbol', TRADING_PAIR)
+    interval = request.args.get('interval', TIMEFRAME)
+
+    signals = signal_gen.get_summary(symbol, interval)
+    return jsonify(signals)
+
+@app.route('/api/candles', methods=['GET'])
+def get_candles():
+    """Get OHLC candle data with signal markers for chart display"""
+    symbol = request.args.get('symbol', TRADING_PAIR)
+    interval = request.args.get('interval', TIMEFRAME)
+
+    data = signal_gen.get_candles_with_signals(symbol, interval)
+    return jsonify(data)
+
+@app.route('/api/history', methods=['GET'])
+def get_history():
+    """Get signal history"""
+    limit = request.args.get('limit', 50, type=int)
+    history = signal_gen.get_history(limit)
+    return jsonify(history)
+
+@app.route('/api/refresh', methods=['POST'])
+def refresh_signals():
+    """Force refresh signals"""
+    symbol = request.json.get('symbol', TRADING_PAIR)
+    interval = request.json.get('interval', TIMEFRAME)
+
+    signals = signal_gen.get_summary(symbol, interval)
+    return jsonify(signals)
+
+@app.route('/health', methods=['GET'])
+def health():
+    """Health check endpoint"""
+    return jsonify({'status': 'ok'})
+
+if __name__ == '__main__':
+    app.run(
+        host='0.0.0.0',
+        port=FLASK_PORT,
+        debug=FLASK_DEBUG
+    )

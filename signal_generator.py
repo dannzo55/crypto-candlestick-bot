@@ -142,3 +142,85 @@ class SignalGenerator:
     def get_history(self, limit=50):
         """Get signal history"""
         return self.signals_history[-limit:]
+
+    def get_candles_with_signals(self, symbol, interval):
+        """
+        Get full OHLC candle data with signal markers for chart display.
+
+        Args:
+            symbol: Trading pair (e.g., 'ETHUSDT')
+            interval: Timeframe (e.g., '15m')
+
+        Returns:
+            Dictionary with candle data and marker positions
+        """
+        df = self.binance.get_historical_data(symbol, interval)
+
+        if df is None or len(df) == 0:
+            return {
+                'success': False,
+                'error': 'Failed to fetch data'
+            }
+
+        # Build candle array for TradingView Lightweight Charts
+        candles = []
+        for _, row in df.iterrows():
+            candles.append({
+                'time': int(row['open_time'].timestamp()),
+                'open': float(row['open']),
+                'high': float(row['high']),
+                'low': float(row['low']),
+                'close': float(row['close']),
+                'volume': float(row['volume'])
+            })
+
+        # Detect patterns across all candles
+        detector = CandlestickPatterns(df)
+        all_signals = detector.detect_all_patterns()
+
+        filtered_signals = [
+            s for s in all_signals
+            if s['confidence'] >= CONFIDENCE_THRESHOLD
+        ]
+
+        # Build marker list keyed by candle timestamp
+        marker_map = {}
+        for signal in filtered_signals:
+            idx = signal['index']
+            ts = int(df.iloc[idx]['open_time'].timestamp())
+            text = f"{signal['pattern'].replace('_', ' ').title()} ({signal['confidence']}%)"
+
+            if signal['signal'] == 'BUY':
+                position, color, shape = 'belowBar', '#26a69a', 'arrowUp'
+            elif signal['signal'] == 'SELL':
+                position, color, shape = 'aboveBar', '#ef5350', 'arrowDown'
+            else:
+                position, color, shape = 'aboveBar', '#9e9e9e', 'circle'
+
+            # If multiple signals land on the same candle, keep highest confidence
+            if ts not in marker_map or signal['confidence'] > marker_map[ts]['_confidence']:
+                marker_map[ts] = {
+                    'time': ts,
+                    'position': position,
+                    'color': color,
+                    'shape': shape,
+                    'text': text,
+                    'signal': signal['signal'],
+                    '_confidence': signal['confidence']
+                }
+
+        # Sort markers by time (required by Lightweight Charts), stripping the
+        # internal '_confidence' key used only for deduplication above.
+        public_keys = ('time', 'position', 'color', 'shape', 'text', 'signal')
+        markers = sorted(
+            [{k: m[k] for k in public_keys} for m in marker_map.values()],
+            key=lambda x: x['time']
+        )
+
+        return {
+            'success': True,
+            'symbol': symbol,
+            'interval': interval,
+            'candles': candles,
+            'markers': markers
+        }
