@@ -4,93 +4,152 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Crypto Candlestick Signal Bot</title>
+    <script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
     <style>
         * {
             margin: 0;
             padding: 0;
             box-sizing: border-box;
         }
-        
+
         body {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             padding: 20px;
         }
-        
+
         .container {
             max-width: 1200px;
             margin: 0 auto;
         }
-        
+
         header {
             text-align: center;
             color: white;
             margin-bottom: 30px;
         }
-        
+
         h1 {
             font-size: 2.5em;
             margin-bottom: 10px;
         }
-        
+
         .controls {
             display: flex;
             gap: 20px;
             margin-bottom: 20px;
             flex-wrap: wrap;
+            align-items: center;
         }
-        
+
         input, button {
             padding: 10px 15px;
             border: none;
             border-radius: 5px;
             font-size: 1em;
         }
-        
+
         input {
             background: white;
             color: #333;
             width: 200px;
         }
-        
+
         button {
             background: #ff6b6b;
             color: white;
             cursor: pointer;
             transition: background 0.3s;
         }
-        
+
         button:hover {
             background: #ff5252;
         }
-        
-        .grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-            gap: 20px;
-            margin-bottom: 30px;
+
+        button.active {
+            background: #4caf50;
         }
-        
+
+        button.active:hover {
+            background: #388e3c;
+        }
+
         .card {
             background: white;
             border-radius: 10px;
             padding: 20px;
             box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
             animation: fadeIn 0.5s ease-in;
+            margin-bottom: 20px;
         }
-        
+
         @keyframes fadeIn {
             from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
+            to   { opacity: 1; transform: translateY(0); }
         }
-        
+
         .card h2 {
             color: #667eea;
             margin-bottom: 15px;
             font-size: 1.3em;
         }
-        
+
+        /* Chart */
+        #chart-container {
+            display: none;
+        }
+
+        #chart {
+            width: 100%;
+            height: 450px;
+        }
+
+        #chart-legend {
+            display: flex;
+            gap: 20px;
+            margin-top: 10px;
+            font-size: 0.85em;
+            color: #666;
+            flex-wrap: wrap;
+        }
+
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .legend-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            flex-shrink: 0;
+        }
+
+        /* Floating tooltip for signal markers */
+        #marker-tooltip {
+            position: fixed;
+            background: rgba(0, 0, 0, 0.85);
+            color: #fff;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 12px;
+            pointer-events: none;
+            display: none;
+            z-index: 9999;
+            max-width: 220px;
+            line-height: 1.6;
+        }
+
+        /* Stats grid */
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
         .stat {
             display: flex;
             justify-content: space-between;
@@ -98,50 +157,39 @@
             padding: 10px 0;
             border-bottom: 1px solid #eee;
         }
-        
+
+        .stat:last-child {
+            border-bottom: none;
+        }
+
         .stat-label {
             color: #666;
             font-weight: 500;
         }
-        
+
         .stat-value {
             color: #333;
             font-weight: bold;
             font-size: 1.1em;
         }
-        
+
         .recommendation {
             padding: 20px;
             border-radius: 8px;
             text-align: center;
             margin: 15px 0;
         }
-        
-        .recommendation.buy {
-            background: #c8e6c9;
-            color: #2e7d32;
-        }
-        
-        .recommendation.sell {
-            background: #ffcdd2;
-            color: #c62828;
-        }
-        
-        .recommendation.neutral {
-            background: #fff9c4;
-            color: #f57f17;
-        }
-        
-        .recommendation.strong {
-            font-size: 1.3em;
-            font-weight: bold;
-        }
-        
+
+        .recommendation.buy     { background: #c8e6c9; color: #2e7d32; }
+        .recommendation.sell    { background: #ffcdd2; color: #c62828; }
+        .recommendation.neutral { background: #fff9c4; color: #f57f17; }
+        .recommendation.strong  { font-size: 1.3em; font-weight: bold; }
+
         .patterns-list {
             max-height: 400px;
             overflow-y: auto;
         }
-        
+
         .pattern-item {
             background: #f5f5f5;
             padding: 10px;
@@ -149,12 +197,12 @@
             border-radius: 5px;
             border-left: 4px solid #667eea;
         }
-        
+
         .pattern-name {
             font-weight: bold;
             color: #333;
         }
-        
+
         .pattern-signal {
             display: inline-block;
             padding: 3px 8px;
@@ -162,34 +210,23 @@
             margin-left: 10px;
             font-size: 0.9em;
         }
-        
-        .pattern-signal.buy {
-            background: #c8e6c9;
-            color: #2e7d32;
-        }
-        
-        .pattern-signal.sell {
-            background: #ffcdd2;
-            color: #c62828;
-        }
-        
-        .pattern-signal.neutral {
-            background: #fff9c4;
-            color: #f57f17;
-        }
-        
+
+        .pattern-signal.buy     { background: #c8e6c9; color: #2e7d32; }
+        .pattern-signal.sell    { background: #ffcdd2; color: #c62828; }
+        .pattern-signal.neutral { background: #fff9c4; color: #f57f17; }
+
         .confidence {
             font-size: 0.85em;
             color: #999;
             margin-top: 3px;
         }
-        
+
         .loading {
             text-align: center;
             padding: 40px;
             color: white;
         }
-        
+
         .spinner {
             border: 4px solid rgba(255, 255, 255, 0.3);
             border-top: 4px solid white;
@@ -199,12 +236,12 @@
             animation: spin 1s linear infinite;
             margin: 0 auto 20px;
         }
-        
+
         @keyframes spin {
-            0% { transform: rotate(0deg); }
+            0%   { transform: rotate(0deg); }
             100% { transform: rotate(360deg); }
         }
-        
+
         .error {
             background: #ffcdd2;
             color: #c62828;
@@ -212,7 +249,7 @@
             border-radius: 5px;
             margin: 20px 0;
         }
-        
+
         .last-update {
             color: #999;
             font-size: 0.9em;
@@ -227,47 +264,225 @@
             <h1>📊 Crypto Candlestick Signal Bot</h1>
             <p>Real-time trading signals based on candlestick patterns</p>
         </header>
-        
+
         <div class="controls">
-            <input type="text" id="symbol" placeholder="Trading Pair (e.g., ETHUSDT)" value="ETHUSDT">
-            <input type="text" id="interval" placeholder="Timeframe (e.g., 15m)" value="15m">
-            <button onclick="loadSignals()">Load Signals</button>
-            <button onclick="startAutoRefresh()">Auto Refresh (30s)</button>
+            <input type="text" id="symbol"   placeholder="Trading Pair (e.g., ETHUSDT)" value="ETHUSDT">
+            <input type="text" id="interval" placeholder="Timeframe (e.g., 15m)"        value="15m">
+            <button onclick="loadData()">Load Signals</button>
+            <button id="autoRefreshBtn" onclick="toggleAutoRefresh()">Auto Refresh (30s)</button>
         </div>
-        
-        <div id="content"></div>
+
+        <div id="loading-indicator" class="loading" style="display:none;">
+            <div class="spinner"></div>Loading signals…
+        </div>
+
+        <div id="error-message" class="error" style="display:none;"></div>
+
+        <!-- Candlestick chart with signal markers -->
+        <div id="chart-container" class="card">
+            <h2>📈 <span id="chart-title">Price Chart</span></h2>
+            <div id="chart"></div>
+            <div id="chart-legend">
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:#26a69a;"></div>
+                    <span>🟢 BUY Signal</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:#ef5350;"></div>
+                    <span>🔴 SELL Signal</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-dot" style="background:#9e9e9e;"></div>
+                    <span>⚪ NEUTRAL Signal</span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats, recommendation, pattern list -->
+        <div id="stats-content"></div>
     </div>
-    
+
+    <!-- Floating tooltip rendered outside container to avoid clipping -->
+    <div id="marker-tooltip"></div>
+
     <script>
         const API_BASE = '/api';
         let autoRefreshInterval = null;
-        
-        async function loadSignals() {
-            const symbol = document.getElementById('symbol').value;
-            const interval = document.getElementById('interval').value;
-            const content = document.getElementById('content');
-            
-            content.innerHTML = '<div class="loading"><div class="spinner"></div>Loading signals...</div>';
-            
+        let lwChart = null;
+        let candleSeries = null;
+        let markerData = [];
+
+        // ── Data loading ────────────────────────────────────────────────────────
+
+        async function loadData() {
+            const symbol   = document.getElementById('symbol').value.trim().toUpperCase();
+            const interval = document.getElementById('interval').value.trim();
+
+            showLoading(true);
+            hideError();
+
             try {
-                const response = await fetch(`${API_BASE}/signals?symbol=${symbol}&interval=${interval}`);
-                const data = await response.json();
-                
-                if (data.success) {
-                    displaySignals(data);
-                } else {
-                    content.innerHTML = `<div class="error">Error: ${data.error}</div>`;
+                const [signalsRes, candlesRes] = await Promise.all([
+                    fetch(`${API_BASE}/signals?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}`),
+                    fetch(`${API_BASE}/candles?symbol=${encodeURIComponent(symbol)}&interval=${encodeURIComponent(interval)}`)
+                ]);
+
+                const signalsData = await signalsRes.json();
+                const candlesData = await candlesRes.json();
+
+                if (!signalsData.success) {
+                    showError(signalsData.error || 'Failed to load signals');
+                    return;
                 }
-            } catch (error) {
-                content.innerHTML = `<div class="error">Error: ${error.message}</div>`;
+                if (!candlesData.success) {
+                    showError(candlesData.error || 'Failed to load candle data');
+                    return;
+                }
+
+                renderChart(candlesData);
+                renderStats(signalsData);
+            } catch (err) {
+                showError(err.message);
+            } finally {
+                showLoading(false);
             }
         }
-        
-        function displaySignals(data) {
-            const content = document.getElementById('content');
-            const recClass = data.recommendation.toLowerCase().replace(' ', '-');
+
+        // ── Chart rendering ──────────────────────────────────────────────────────
+
+        function renderChart(data) {
+            const chartContainer = document.getElementById('chart-container');
+            const chartDiv       = document.getElementById('chart');
+
+            chartContainer.style.display = 'block';
+            document.getElementById('chart-title').textContent =
+                `${data.symbol} – ${data.interval}`;
+
+            // Destroy previous chart instance before creating a new one
+            if (lwChart) {
+                lwChart.remove();
+                lwChart = null;
+                candleSeries = null;
+            }
+
+            lwChart = LightweightCharts.createChart(chartDiv, {
+                width: chartDiv.clientWidth,
+                height: 450,
+                layout: {
+                    background: { color: '#ffffff' },
+                    textColor: '#333333',
+                },
+                grid: {
+                    vertLines: { color: '#f0f0f0' },
+                    horzLines: { color: '#f0f0f0' },
+                },
+                crosshair: {
+                    mode: LightweightCharts.CrosshairMode.Normal,
+                },
+                rightPriceScale: {
+                    borderColor: '#e0e0e0',
+                },
+                timeScale: {
+                    borderColor: '#e0e0e0',
+                    timeVisible: true,
+                    secondsVisible: false,
+                },
+            });
+
+            candleSeries = lwChart.addCandlestickSeries({
+                upColor:      '#26a69a',
+                downColor:    '#ef5350',
+                borderVisible: false,
+                wickUpColor:   '#26a69a',
+                wickDownColor: '#ef5350',
+            });
+
+            candleSeries.setData(data.candles);
+
+            // Build chart-compatible marker objects (only recognised fields)
+            const chartMarkers = data.markers.map(m => ({
+                time:     m.time,
+                position: m.position,
+                color:    m.color,
+                shape:    m.shape,
+                text:     m.text,
+                size:     m.size,
+            }));
+
+            // Markers are pre-sorted by time from the server; set them directly
+            candleSeries.setMarkers(chartMarkers);
+
+            // Keep full marker data (including pattern/confidence) for tooltips
+            markerData = data.markers;
+
+            setupTooltip();
+            lwChart.timeScale().fitContent();
+
+            // Keep chart width in sync with container
+            new ResizeObserver(entries => {
+                if (lwChart && entries.length > 0) {
+                    lwChart.applyOptions({ width: entries[0].contentRect.width });
+                }
+            }).observe(chartDiv);
+        }
+
+        // ── Marker tooltips ──────────────────────────────────────────────────────
+
+        function setupTooltip() {
+            const tooltip = document.getElementById('marker-tooltip');
+
+            // Build a time → markers lookup map
+            const markerMap = new Map();
+            markerData.forEach(m => {
+                if (!markerMap.has(m.time)) markerMap.set(m.time, []);
+                markerMap.get(m.time).push(m);
+            });
+
+            lwChart.subscribeCrosshairMove(param => {
+                if (!param.time || !param.point) {
+                    tooltip.style.display = 'none';
+                    return;
+                }
+
+                const matches = markerMap.get(param.time);
+                if (!matches || matches.length === 0) {
+                    tooltip.style.display = 'none';
+                    return;
+                }
+
+                const lines = matches.map(m => {
+                    const icon = m.signal === 'BUY'  ? '🟢' :
+                                 m.signal === 'SELL' ? '🔴' : '⚪';
+                    return `${icon} <strong>${m.pattern.replace(/_/g, ' ').toUpperCase()}</strong><br>Confidence: ${m.confidence}%`;
+                });
+
+                tooltip.innerHTML = lines.join('<br><hr style="border-color:#555;margin:4px 0;">');
+                tooltip.style.display = 'block';
+
+                // Position tooltip near cursor, keeping it inside the viewport
+                const chartRect = document.getElementById('chart').getBoundingClientRect();
+                let x = chartRect.left + param.point.x + 16;
+                let y = chartRect.top  + param.point.y - 12;
+                if (x + 230 > window.innerWidth)  x -= 246;
+                if (y + 120 > window.innerHeight) y -= 120;
+
+                tooltip.style.left = `${x}px`;
+                tooltip.style.top  = `${y}px`;
+            });
+        }
+
+        // ── Stats / recommendation / patterns ───────────────────────────────────
+
+        function renderStats(data) {
+            const sigType = data.recommendation.includes('BUY')  ? 'buy'  :
+                            data.recommendation.includes('SELL') ? 'sell' : 'neutral';
             const isStrong = data.recommendation.includes('STRONG');
-            
+
+            const recIcon = data.recommendation === 'STRONG BUY'  ? '🟢' :
+                            data.recommendation === 'BUY'         ? '📈' :
+                            data.recommendation === 'STRONG SELL' ? '🔴' :
+                            data.recommendation === 'SELL'        ? '📉' : '⚪';
+
             let html = `
                 <div class="grid">
                     <div class="card">
@@ -289,7 +504,7 @@
                             <span class="stat-value">${new Date(data.last_candle.time).toLocaleTimeString()}</span>
                         </div>
                     </div>
-                    
+
                     <div class="card">
                         <h2>Candle Data</h2>
                         <div class="stat">
@@ -309,7 +524,7 @@
                             <span class="stat-value">${parseFloat(data.last_candle.close).toFixed(4)}</span>
                         </div>
                     </div>
-                    
+
                     <div class="card">
                         <h2>Signal Summary</h2>
                         <div class="stat">
@@ -318,11 +533,11 @@
                         </div>
                         <div class="stat">
                             <span class="stat-label">Buy Signals:</span>
-                            <span class="stat-value" style="color: #2e7d32;">${data.buy_signals}</span>
+                            <span class="stat-value" style="color:#2e7d32;">${data.buy_signals}</span>
                         </div>
                         <div class="stat">
                             <span class="stat-label">Sell Signals:</span>
-                            <span class="stat-value" style="color: #c62828;">${data.sell_signals}</span>
+                            <span class="stat-value" style="color:#c62828;">${data.sell_signals}</span>
                         </div>
                         <div class="stat">
                             <span class="stat-label">Neutral:</span>
@@ -330,66 +545,77 @@
                         </div>
                     </div>
                 </div>
-                
+
                 <div class="card">
-                    <div class="recommendation ${recClass} ${isStrong ? 'strong' : ''}">
-                        <div style="font-size: 2em;">
-                            ${data.recommendation === 'STRONG BUY' ? '🟢' : 
-                              data.recommendation === 'BUY' ? '📈' :
-                              data.recommendation === 'STRONG SELL' ? '🔴' :
-                              data.recommendation === 'SELL' ? '📉' : '⚪'}
-                        </div>
+                    <div class="recommendation ${sigType} ${isStrong ? 'strong' : ''}">
+                        <div style="font-size:2em;">${recIcon}</div>
                         <div>${data.recommendation}</div>
                         <div>Confidence: ${data.recommendation_confidence}%</div>
                     </div>
                 </div>
             `;
-            
-            if (data.patterns.length > 0) {
+
+            if (data.patterns && data.patterns.length > 0) {
                 html += `
                     <div class="card">
                         <h2>Detected Patterns</h2>
                         <div class="patterns-list">
                 `;
-                
                 data.patterns.forEach(pattern => {
-                    const signalClass = pattern.signal.toLowerCase();
+                    const sc = pattern.signal.toLowerCase();
                     html += `
                         <div class="pattern-item">
                             <div class="pattern-name">
                                 ${pattern.pattern.replace(/_/g, ' ').toUpperCase()}
-                                <span class="pattern-signal ${signalClass}">${pattern.signal}</span>
+                                <span class="pattern-signal ${sc}">${pattern.signal}</span>
                             </div>
                             <div class="confidence">Confidence: ${pattern.confidence}%</div>
                         </div>
                     `;
                 });
-                
-                html += `
-                        </div>
-                    </div>
-                `;
+                html += `</div></div>`;
             }
-            
+
             html += `<div class="last-update">Last updated: ${new Date(data.timestamp).toLocaleString()}</div>`;
-            
-            content.innerHTML = html;
+
+            document.getElementById('stats-content').innerHTML = html;
         }
-        
-        function startAutoRefresh() {
+
+        // ── Auto-refresh ────────────────────────────────────────────────────────
+
+        function toggleAutoRefresh() {
+            const btn = document.getElementById('autoRefreshBtn');
             if (autoRefreshInterval) {
                 clearInterval(autoRefreshInterval);
                 autoRefreshInterval = null;
-                alert('Auto refresh stopped');
+                btn.textContent = 'Auto Refresh (30s)';
+                btn.classList.remove('active');
             } else {
-                loadSignals();
-                autoRefreshInterval = setInterval(loadSignals, 30000);
-                alert('Auto refresh started (every 30 seconds)');
+                loadData();
+                autoRefreshInterval = setInterval(loadData, 30000);
+                btn.textContent = 'Stop Auto Refresh';
+                btn.classList.add('active');
             }
         }
-        
+
+        // ── Helpers ─────────────────────────────────────────────────────────────
+
+        function showLoading(visible) {
+            document.getElementById('loading-indicator').style.display = visible ? 'block' : 'none';
+        }
+
+        function showError(msg) {
+            const el = document.getElementById('error-message');
+            el.textContent = `Error: ${msg}`;
+            el.style.display = 'block';
+        }
+
+        function hideError() {
+            document.getElementById('error-message').style.display = 'none';
+        }
+
         // Load signals on page load
-        window.addEventListener('load', loadSignals);
+        window.addEventListener('load', loadData);
     </script>
 </body>
 </html>

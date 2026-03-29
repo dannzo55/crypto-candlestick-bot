@@ -142,3 +142,86 @@ class SignalGenerator:
     def get_history(self, limit=50):
         """Get signal history"""
         return self.signals_history[-limit:]
+
+    def get_chart_data(self, symbol, interval, limit=100):
+        """
+        Get OHLCV candle data and signal markers formatted for TradingView
+        Lightweight Charts.
+
+        Args:
+            symbol: Trading pair (e.g., 'ETHUSDT')
+            interval: Timeframe (e.g., '15m')
+            limit: Number of candles to return
+
+        Returns:
+            Dictionary with 'candles' (OHLCV list) and 'markers' (signal list)
+        """
+        df = self.binance.get_historical_data(symbol, interval, limit=limit)
+
+        if df is None or len(df) == 0:
+            return {'success': False, 'error': 'Failed to fetch data'}
+
+        # Format candles for Lightweight Charts (time must be UTC unix seconds)
+        candles = [
+            {
+                'time': int(row['open_time'].timestamp()),
+                'open': float(row['open']),
+                'high': float(row['high']),
+                'low': float(row['low']),
+                'close': float(row['close']),
+            }
+            for _, row in df.iterrows()
+        ]
+
+        # Detect all patterns across the full history
+        detector = CandlestickPatterns(df)
+        all_signals = detector.detect_all_patterns()
+
+        # Build markers, keeping extra metadata for tooltip display
+        markers = []
+        for signal in all_signals:
+            if signal['confidence'] < CONFIDENCE_THRESHOLD:
+                continue
+            idx = signal['index']
+            if idx >= len(df):
+                continue
+
+            candle_time = int(df.iloc[idx]['open_time'].timestamp())
+            sig_type = signal['signal']
+
+            if sig_type == 'BUY':
+                color = '#26a69a'
+                position = 'belowBar'
+                shape = 'arrowUp'
+            elif sig_type == 'SELL':
+                color = '#ef5350'
+                position = 'aboveBar'
+                shape = 'arrowDown'
+            else:
+                color = '#9e9e9e'
+                position = 'inBar'
+                shape = 'circle'
+
+            markers.append({
+                'time': candle_time,
+                'position': position,
+                'color': color,
+                'shape': shape,
+                'text': sig_type[0],  # 'B', 'S', or 'N'
+                'size': 1,
+                # Extra fields used by the frontend tooltip (ignored by chart lib)
+                'pattern': signal['pattern'],
+                'signal': sig_type,
+                'confidence': signal['confidence'],
+            })
+
+        # Lightweight Charts requires markers sorted by time
+        markers.sort(key=lambda m: m['time'])
+
+        return {
+            'success': True,
+            'symbol': symbol,
+            'interval': interval,
+            'candles': candles,
+            'markers': markers,
+        }
