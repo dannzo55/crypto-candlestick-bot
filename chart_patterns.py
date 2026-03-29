@@ -1,50 +1,51 @@
 import numpy as np
 import pandas as pd
 
-class ChartPatternDetector:
-    def __init__(self, data):
-        self.data = data
+class PatternDetector:
+    def __init__(self, prices):
+        self.prices = prices
 
     def head_and_shoulders(self):
-        # Logic for detecting Head and Shoulders pattern
+        # Implement head and shoulders detection logic
         pass
 
     def inverse_head_and_shoulders(self):
-        # Logic for detecting Inverse Head and Shoulders pattern
+        # Implement inverse head and shoulders detection logic
         pass
 
     def double_top(self):
-        # Logic for detecting Double Top pattern
+        # Implement double top detection logic
         pass
 
     def double_bottom(self):
-        # Logic for detecting Double Bottom pattern
+        # Implement double bottom detection logic
         pass
 
     def ascending_triangle(self):
-        # Logic for detecting Ascending Triangle pattern
+        # Implement ascending triangle detection logic
         pass
 
     def descending_triangle(self):
-        # Logic for detecting Descending Triangle pattern
+        # Implement descending triangle detection logic
         pass
 
     def bullish_flag(self):
-        # Logic for detecting Bullish Flag pattern
+        # Implement bullish flag detection logic
         pass
 
     def bearish_flag(self):
-        # Logic for detecting Bearish Flag pattern
+        # Implement bearish flag detection logic
         pass
 
     def triple_top(self):
-        # Logic for detecting Triple Top pattern
+        # Implement triple top detection logic
         pass
 
     def triple_bottom(self):
-        # Logic for detecting Triple Bottom pattern
+        # Implement triple bottom detection logic
         pass
 
-    def detect_patterns(self):
-        # Method to run all detection methods
-        pass
+# Example usage:
+# prices = pd.Series([...]) # Your price data here
+# detector = PatternDetector(prices)
+# detector.head_and_shoulders() # Call methods to detect patterns
