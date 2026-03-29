@@ -26,6 +26,31 @@ def get_signals():
     })
 
 
+@app.route('/api/candles', methods=['GET'])
+def get_candles():
+    """Get OHLCV candlestick data for chart rendering"""
+    symbol = request.args.get('symbol', TRADING_PAIR)
+    interval = request.args.get('interval', TIMEFRAME)
+    limit = request.args.get('limit', 100, type=int)
+
+    df = signal_gen.binance.get_historical_data(symbol, interval, limit=limit)
+
+    if df is None:
+        return jsonify({'success': False, 'error': 'Failed to fetch candle data'})
+
+    candles = [
+        {
+            'time': int(row['open_time'].timestamp()),
+            'open': float(row['open']),
+            'high': float(row['high']),
+            'low': float(row['low']),
+            'close': float(row['close']),
+        }
+        for _, row in df.iterrows()
+    ]
+    return jsonify({'success': True, 'candles': candles})
+
+
 @app.route('/api/history', methods=['GET'])
 def get_history():
     """Get signal history"""

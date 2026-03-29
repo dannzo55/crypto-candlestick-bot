@@ -62,6 +62,15 @@ class SignalGenerator:
             if s['confidence'] >= CONFIDENCE_THRESHOLD
         ]
         
+        # Add candle timestamps so the chart can place markers on the right candle
+        for signal in filtered_signals:
+            idx = signal.get('index', -1)
+            if 0 <= idx < len(df):
+                try:
+                    signal['time'] = int(df.iloc[idx]['open_time'].timestamp())
+                except (AttributeError, TypeError, OSError):
+                    pass
+        
         # Get current price
         current_price = self.binance.get_latest_price(symbol)
         
