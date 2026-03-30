@@ -3,8 +3,9 @@ import json
 from pathlib import Path
 from patterns import CandlestickPatterns
 from chart_patterns import ChartPatterns
+from advanced_patterns import AdvancedPatterns
 from binance_client import BinanceClient
-from config import SIGNALS_HISTORY_FILE, MAX_HISTORY_RECORDS, CONFIDENCE_THRESHOLD
+from config import SIGNALS_HISTORY_FILE, MAX_HISTORY_RECORDS, CONFIDENCE_THRESHOLD, USE_ADVANCED_PATTERNS
 
 class SignalGenerator:
     """Generates trading signals based on candlestick and chart patterns"""
@@ -62,10 +63,20 @@ class SignalGenerator:
         chart_signals = chart_detector.detect_all_patterns()
 
         all_signals = candlestick_signals + chart_signals
-        
+
+        # Detect advanced patterns (if enabled)
+        if USE_ADVANCED_PATTERNS and 'volume' in df.columns:
+            advanced_detector = AdvancedPatterns(df)
+            advanced_signals = advanced_detector.detect_all_patterns()
+            all_signals = all_signals + advanced_signals
+
+        # Apply pattern convergence boost: multiple patterns at the same candle
+        # increase confidence to reward signal confirmation
+        all_signals = self._apply_convergence_boost(all_signals)
+
         # Filter by confidence threshold
         filtered_signals = [
-            s for s in all_signals 
+            s for s in all_signals
             if s['confidence'] >= CONFIDENCE_THRESHOLD
         ]
         
@@ -109,6 +120,31 @@ class SignalGenerator:
         
         return result
     
+    def _apply_convergence_boost(self, signals):
+        """Boost confidence when multiple patterns converge at the same candle index.
+        2 patterns: +10, 3 patterns: +20, 4+ patterns: +30 (capped at 95)."""
+        from collections import defaultdict
+        index_counts = defaultdict(int)
+        for s in signals:
+            index_counts[s['index']] += 1
+
+        boosted = []
+        for s in signals:
+            count = index_counts[s['index']]
+            boost = 0
+            if count == 2:
+                boost = 10
+            elif count == 3:
+                boost = 20
+            elif count >= 4:
+                boost = 30
+            entry = dict(s)
+            entry['confidence'] = min(95, entry['confidence'] + boost)
+            if count > 1:
+                entry['convergence_count'] = count
+            boosted.append(entry)
+        return boosted
+
     def _store_signal(self, signal_data):
         """Store signal in history"""
         self.signals_history.append(signal_data)
