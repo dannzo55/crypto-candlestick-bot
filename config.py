@@ -39,6 +39,30 @@ PATTERNS_TO_DETECT = [
 # Signal Confidence Threshold (0-100)
 CONFIDENCE_THRESHOLD = 70
 
+# Advanced Patterns Toggle
+USE_ADVANCED_PATTERNS = True
+
+# Advanced pattern names (used for filtering/display)
+ADVANCED_PATTERNS = [
+    'cup_and_handle',
+    'pennant',
+    'symmetrical_triangle',
+    'rising_wedge',
+    'falling_wedge',
+    'breakout',
+    'gap_common',
+    'gap_breakaway',
+    'gap_runaway',
+    'gap_exhaustion',
+    'island_reversal',
+    'volume_spike',
+    'support_bounce',
+    'resistance_bounce',
+    'vwap_reversal',
+    'rounding_bottom',
+    'rounding_top',
+]
+
 # Data Storage
 SIGNALS_HISTORY_FILE = 'signals_history.json'
 MAX_HISTORY_RECORDS = 1000
