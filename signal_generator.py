@@ -2,11 +2,12 @@ from datetime import datetime
 import json
 from pathlib import Path
 from patterns import CandlestickPatterns
+from chart_patterns import ChartPatterns
 from binance_client import BinanceClient
 from config import SIGNALS_HISTORY_FILE, MAX_HISTORY_RECORDS, CONFIDENCE_THRESHOLD
 
 class SignalGenerator:
-    """Generates trading signals based on candlestick patterns"""
+    """Generates trading signals based on candlestick and chart patterns"""
     
     def __init__(self):
         """Initialize signal generator"""
@@ -52,9 +53,15 @@ class SignalGenerator:
                 'error': 'Failed to fetch data'
             }
         
-        # Detect patterns
+        # Detect candlestick patterns
         detector = CandlestickPatterns(df)
-        all_signals = detector.detect_all_patterns()
+        candlestick_signals = detector.detect_all_patterns()
+
+        # Detect chart patterns
+        chart_detector = ChartPatterns(df)
+        chart_signals = chart_detector.detect_all_patterns()
+
+        all_signals = candlestick_signals + chart_signals
         
         # Filter by confidence threshold
         filtered_signals = [
