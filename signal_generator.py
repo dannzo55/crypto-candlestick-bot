@@ -1,5 +1,6 @@
 from datetime import datetime
 import json
+import numpy as np
 from pathlib import Path
 from patterns import CandlestickPatterns
 from chart_patterns import ChartPatterns
@@ -54,6 +55,9 @@ class SignalGenerator:
                 'error': 'Failed to fetch data'
             }
         
+        # Determine market trend
+        trend_info = self._get_trend_direction(df)
+
         # Detect candlestick patterns
         detector = CandlestickPatterns(df)
         candlestick_signals = detector.detect_all_patterns()
@@ -108,6 +112,15 @@ class SignalGenerator:
                 'close': float(last_candle['close']),
                 'time': str(last_candle['open_time'])
             },
+            'trend': {
+                'direction': trend_info['direction'],
+                'strength': round(trend_info['strength'], 2),
+                'methods': {
+                    'moving_average': trend_info['ma_trend'],
+                    'higher_lows_highs': trend_info['hl_trend'],
+                    'linear_regression': trend_info['slope_trend']
+                }
+            },
             'signals_detected': len(filtered_signals),
             'buy_signals': len([s for s in filtered_signals if s['signal'] == 'BUY']),
             'sell_signals': len([s for s in filtered_signals if s['signal'] == 'SELL']),
@@ -120,6 +133,88 @@ class SignalGenerator:
         
         return result
     
+    def _get_trend_direction(self, df):
+        """
+        Determine market trend using hybrid 3-method approach
+
+        Methods:
+        1. Moving Averages (40% weight) - Shows medium-term trend
+        2. Higher Highs/Lows (40% weight) - Shows structure
+        3. Linear Regression (20% weight) - Shows mathematical slope
+
+        Returns:
+            dict with direction, strength, and individual method results
+        """
+        if len(df) < 20:
+            return {
+                'direction': 'INSUFFICIENT_DATA',
+                'strength': 0,
+                'ma_trend': 'UNKNOWN',
+                'hl_trend': 'UNKNOWN',
+                'slope_trend': 'UNKNOWN'
+            }
+
+        close = df['close'].values
+        high = df['high'].values
+        low = df['low'].values
+
+        # METHOD 1: Moving Average Analysis (40% weight)
+        ma_9 = close[-9:].mean()
+        ma_20 = close[-20:].mean()
+
+        if close[-1] > ma_9 and ma_9 > ma_20:
+            ma_trend = 'UPTREND'
+        elif close[-1] < ma_9 and ma_9 < ma_20:
+            ma_trend = 'DOWNTREND'
+        else:
+            ma_trend = 'SIDEWAYS'
+
+        # METHOD 2: Higher Highs/Lows Detection (40% weight)
+        if high[-1] > max(high[-5:-1]) and low[-1] > max(low[-5:-1]):
+            hl_trend = 'UPTREND'
+        elif high[-1] < min(high[-5:-1]) and low[-1] < min(low[-5:-1]):
+            hl_trend = 'DOWNTREND'
+        else:
+            hl_trend = 'SIDEWAYS'
+
+        # METHOD 3: Linear Regression Slope (20% weight)
+        x = np.arange(20)
+        y = close[-20:].astype(float)
+        coefficients = np.polyfit(x, y, 1)
+        slope = coefficients[0]
+
+        close_mean = close[-20:].mean()
+        slope_pct = (slope / close_mean * 100) if close_mean != 0 else 0
+
+        if slope_pct > 0.05:
+            slope_trend = 'UPTREND'
+        elif slope_pct < -0.05:
+            slope_trend = 'DOWNTREND'
+        else:
+            slope_trend = 'SIDEWAYS'
+
+        # WEIGHTED VOTING (40 + 40 + 20 = 100)
+        trend_votes = {
+            'UPTREND': 0,
+            'DOWNTREND': 0,
+            'SIDEWAYS': 0
+        }
+
+        trend_votes[ma_trend] += 0.40
+        trend_votes[hl_trend] += 0.40
+        trend_votes[slope_trend] += 0.20
+
+        direction = max(trend_votes, key=trend_votes.get)
+        strength = max(trend_votes.values())
+
+        return {
+            'direction': direction,
+            'strength': strength,
+            'ma_trend': ma_trend,
+            'hl_trend': hl_trend,
+            'slope_trend': slope_trend
+        }
+
     def _apply_convergence_boost(self, signals):
         """Boost confidence when multiple patterns converge at the same candle index.
         2 patterns: +10, 3 patterns: +20, 4+ patterns: +30 (capped at 95)."""
@@ -168,26 +263,47 @@ class SignalGenerator:
         
         buy_count = signals['buy_signals']
         sell_count = signals['sell_signals']
+        trend = signals['trend']['direction']
+        trend_strength = signals['trend']['strength']
         
-        # Determine recommendation
+        # Determine recommendation with trend context
         if buy_count > sell_count * 1.5:
             recommendation = 'STRONG BUY'
             confidence = min(95, 70 + (buy_count * 10))
+
+            if trend == 'UPTREND':
+                confidence = min(98, confidence + int(5 * trend_strength))
+                recommendation += ' (Trend-Aligned)'
+
         elif buy_count > sell_count:
             recommendation = 'BUY'
             confidence = min(90, 60 + (buy_count * 5))
+
+            if trend == 'UPTREND':
+                confidence = min(93, confidence + int(3 * trend_strength))
+
         elif sell_count > buy_count * 1.5:
             recommendation = 'STRONG SELL'
             confidence = min(95, 70 + (sell_count * 10))
+
+            if trend == 'DOWNTREND':
+                confidence = min(98, confidence + int(5 * trend_strength))
+                recommendation += ' (Trend-Aligned)'
+
         elif sell_count > buy_count:
             recommendation = 'SELL'
             confidence = min(90, 60 + (sell_count * 5))
+
+            if trend == 'DOWNTREND':
+                confidence = min(93, confidence + int(3 * trend_strength))
+
         else:
             recommendation = 'NEUTRAL'
             confidence = 50
         
         signals['recommendation'] = recommendation
         signals['recommendation_confidence'] = confidence
+        signals['trend_context'] = trend
         
         return signals
     
